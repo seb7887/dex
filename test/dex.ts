@@ -1,44 +1,42 @@
-import { ethers } from "hardhat"
+import { ethers, waffle } from "hardhat"
 import { expect } from "chai"
 
-describe("DEX", () => {
-    let owner: any, addr1: any, addrs: any
-    let iao: any
-    let dex: any
+const { provider } = waffle
 
+const totalSupply = ethers.utils.parseEther("10000")
+const amountA = ethers.utils.parseEther("2000")
+const amountB = ethers.utils.parseEther("1000")
+let token: any
+let dex: any
+let deployer: any
+let alice: any
+let bob: any
+let trx: any
+
+describe("Dex", () => {
     beforeEach(async () => {
-        ;[owner, addr1, ...addrs] = await ethers.getSigners()
+        [deployer, bob, alice] = await ethers.getSigners()
+        const Token = await ethers.getContractFactory("IaoToken")
+        token = await Token.deploy("Iao", "IAO", totalSupply)
+        await token.deployed()
 
-        const IaoFactory = await ethers.getContractFactory("IaoToken")
-        iao = await IaoFactory.deploy()
-        await iao.deployed()
-
-        const DexFactory = await ethers.getContractFactory("DEX")
-        dex = await DexFactory.deploy(iao.address)
+        const Dex = await ethers.getContractFactory("Dex")
+        dex = await Dex.deploy(token.address)
         await dex.deployed()
-
-        await iao
-            .connect(owner)
-            .transfer(owner.address, addr1.address, 10 * 10 ** 18)
-        await iao
-            .connect(owner)
-            .approve(dex.address, ethers.utils.parseEther("100"))
-
-        await dex
-            .connect(owner)
-            .init(ethers.utils.parseEther("5"), {
-                value: ethers.utils.parseEther("5"),
-            })
     })
 
-    describe("deposit()", () => {
+    describe("addLiquidity", () => {
         it("happy path", async () => {
-            const amount = ethers.utils.parseEther("0.5")
-            const tx = await dex.connect(addr1).deposit({ value: amount })
-            await tx.wait()
+            await token.approve(dex.address, amountA)
+            trx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(trx).to.emit(dex, "AddLiquidity").withArgs(
+                deployer.address,
+                amountB,
+                amountA
+            )
 
-            const balance = await ethers.provider.getBalance(dex.address)
-            expect(balance).to.equal(amount)
+            expect(await provider.getBalance(dex.address)).to.equal(amountB)
+            expect(await dex.getReserve()).to.equal(amountA)
         })
     })
 })

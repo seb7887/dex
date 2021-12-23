@@ -27,6 +27,11 @@ contract Dex is ERC20 {
         uint256 indexed ethAmount,
         uint256 indexed tknAmount
     );
+    event TokenPurchase(
+        address buyer,
+        uint256 indexed ethSold,
+        uint256 indexed tknsBought
+    );
 
     constructor(address _tknAddress) ERC20("IaODeX", "LP") {
         require(_tknAddress != address(0), "invalid token address");
@@ -79,5 +84,49 @@ contract Dex is ERC20 {
 
     function getReserve() public view returns (uint256) {
         return IERC20(tknAddress).balanceOf(address(this));
+    }
+
+    function getAmount(
+        uint256 inputAmount,
+        uint256 inputReserve,
+        uint256 outputReserve
+    ) private pure returns (uint256) {
+        require(inputReserve > 0 && outputReserve > 0, "invalid reserves");
+
+        uint256 inputAmountWithFee = inputReserve.mul(99);
+        uint256 numerator = inputAmountWithFee.mul(outputReserve);
+        uint256 denominator = (inputReserve.mul(100)).add(inputAmountWithFee);
+
+        return numerator / denominator;
+    }
+
+    function getTokenAmount(uint256 _ethSold) public view returns (uint256) {
+        require(_ethSold > 0, "ethers sold cannot be zero");
+        uint256 tknReserve = getReserve();
+        return getReserve(_ethSold, address(this).balance, tknReserve);
+    }
+
+    function getEthAmount(uint256 _tknSold) public view returns (uint256) {
+        require(_tknSold > 0, "tokens sold cannot be zero");
+        uint256 tknReserve = getReserve();
+        return getReserve(_tknSold, tknReserve, address(this).balance);
+    }
+
+    function ethToToken(uint256 _minTokens, address _recipient) private {
+        uint256 tknReserve = getReserve();
+        uint256 tknsBought = getAmount(
+            msg.value,
+            address(this).balance - msg.value,
+            tknReserve
+        );
+
+        require(tknsBought >= _minTokens, "insufficient output amount");
+        IERC20(tknAddress).transfer(_recipient, tknsBought);
+
+        emit TokenPurchase(msg.sender, msg.value, tknsBought);
+    }
+
+    function ethToTokenSwap(uint256 _minTokens) public payable {
+        ethToToken(_minTokens, msg.sender);
     }
 }

@@ -22,6 +22,11 @@ contract Dex is ERC20 {
         uint256 indexed tokensSold,
         uint256 indexed ethBought
     );
+    event RemoveLiquidity(
+        address indexed provider,
+        uint256 indexed ethAmount,
+        uint256 indexed tknAmount
+    );
 
     constructor(address _tknAddress) ERC20("IaODeX", "LP") {
         require(_tknAddress != address(0), "invalid token address");
@@ -51,6 +56,25 @@ contract Dex is ERC20 {
         emit AddLiquidity(msg.sender, msg.value, _tknAmount);
 
         return liquidity;
+    }
+
+    function removeLiquidity(uint256 _amount)
+        public
+        returns (uint256, uint256)
+    {
+        require(_amount > 0, "invalid amount to withdraw");
+
+        uint256 supply = totalSupply();
+        uint256 ethAmount = _amount.mul(address(this).balance) / supply;
+        uint256 tknAmount = _amount.mul(getReserve()) / supply;
+
+        _burn(msg.sender, _amount);
+        payable(msg.sender).transfer(ethAmount);
+        IERC20(tknAddress).transfer(msg.sender, tknAmount);
+
+        emit RemoveLiquidity(msg.sender, ethAmount, tknAmount);
+
+        return (ethAmount, tknAmount);
     }
 
     function getReserve() public view returns (uint256) {

@@ -12,7 +12,7 @@ let dex: any
 let deployer: any
 let alice: any
 let bob: any
-let trx: any
+let tx: any
 
 describe("Dex", () => {
     beforeEach(async () => {
@@ -29,8 +29,8 @@ describe("Dex", () => {
     describe("addLiquidity", () => {
         it("happy path", async () => {
             await token.approve(dex.address, amountA)
-            trx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(trx).to.emit(dex, "AddLiquidity").withArgs(
+            tx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
                 deployer.address,
                 amountB,
                 amountA
@@ -41,17 +41,48 @@ describe("Dex", () => {
         })
         it("should revert trx if sender has not enough tokens", async () => {
             await token.approve(dex.address, amountA)
-            trx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(trx).to.emit(dex, "AddLiquidity").withArgs(
+            tx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
                 deployer.address,
                 amountB,
                 amountA
             )
 
             await token.approve(dex.address, amountC)
-            trx = dex.addLiquidity(amountC, { value: amountB })
+            tx = dex.addLiquidity(amountC, { value: amountB })
 
-            await expect(trx).to.be.revertedWith("insufficient token amount");
+            await expect(tx).to.be.revertedWith("insufficient token amount");
+        })
+    })
+
+    describe("removeLiquidity", () => {
+        it("happy path", async () => {
+            await token.approve(dex.address, amountA)
+            token.transfer(bob.address, totalSupply)
+            await token.connect(bob).approve(dex.address, totalSupply)
+            tx = dex.connect(bob).addLiquidity(amountA, { value: amountB })
+            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
+                bob.address,
+                amountB,
+                amountA
+            )
+
+            expect(await provider.getBalance(dex.address)).to.equal(amountB)
+            expect(await dex.getReserve()).to.equal(amountA)
+
+            const lpAmount = await dex.balanceOf(bob.address)
+
+            tx = dex.connect(bob).removeLiquidity(lpAmount)
+            await expect(tx).to.emit(dex, "RemoveLiquidity").withArgs(
+                bob.address,
+                amountB,
+                amountA
+            )
+        })
+        it("should revert if amount equals to zero", async () => {
+            const amount = ethers.utils.parseEther("0")
+            tx = dex.removeLiquidity(amount)
+            await expect(tx).to.revertedWith("invalid amount to withdraw")
         })
     })
 })

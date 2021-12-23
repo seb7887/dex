@@ -6,6 +6,7 @@ const { provider } = waffle
 const totalSupply = ethers.utils.parseEther("10000")
 const amountA = ethers.utils.parseEther("2000")
 const amountB = ethers.utils.parseEther("1000")
+const amountC = ethers.utils.parseEther("500")
 let token: any
 let dex: any
 let deployer: any
@@ -37,6 +38,20 @@ describe("Dex", () => {
 
             expect(await provider.getBalance(dex.address)).to.equal(amountB)
             expect(await dex.getReserve()).to.equal(amountA)
+        })
+        it("should revert trx if sender has not enough tokens", async () => {
+            await token.approve(dex.address, amountA)
+            trx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(trx).to.emit(dex, "AddLiquidity").withArgs(
+                deployer.address,
+                amountB,
+                amountA
+            )
+
+            await token.approve(dex.address, amountC)
+            trx = dex.addLiquidity(amountC, { value: amountB })
+
+            await expect(trx).to.be.revertedWith("insufficient token amount");
         })
     })
 })

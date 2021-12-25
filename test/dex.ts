@@ -85,4 +85,77 @@ describe("Dex", () => {
             await expect(tx).to.revertedWith("invalid amount to withdraw")
         })
     })
+
+    describe("getEthAmount", () => {
+        it("should return correct ETH price", async () => {
+            await token.approve(dex.address, amountA)
+            tx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
+                deployer.address,
+                amountB,
+                amountA
+            )
+
+            let bar = await dex.getEthAmount(ethers.utils.parseEther("2"))
+            expect(ethers.utils.formatEther(bar)).to.eq("0.989020869339354039")
+
+            bar = await dex.getEthAmount(ethers.utils.parseEther("100"));
+            expect(ethers.utils.formatEther(bar)).to.eq("47.16531681753215817");
+
+            bar = await dex.getEthAmount(ethers.utils.parseEther("2000"));
+            expect(ethers.utils.formatEther(bar)).to.eq("497.487437185929648241");
+        })
+    })
+
+    describe("ethToTokenSwap", () => {
+        it("happy path", async () => {
+            await token.approve(dex.address, amountA)
+            tx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
+                deployer.address,
+                amountB,
+                amountA
+            )
+
+            const bobExpectedOutput = await dex.getEthAmount(ethers.utils.parseEther("2"))
+            tx = await dex.connect(bob).ethToTokenSwap(bobExpectedOutput, { value: ethers.utils.parseEther("2") })
+
+            await expect(tx).to.emit(dex, "TokenPurchase").withArgs(
+                bob.address,
+                ethers.utils.parseEther("2"),
+                ethers.utils.parseEther("3.952174694105670771")
+            )
+        })
+    })
+
+    describe("tokenToEthSwap", () => {
+        it("happy path", async () => {
+            await token.approve(dex.address, amountA)
+            tx = dex.addLiquidity(amountA, { value: amountB })
+            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
+                deployer.address,
+                amountB,
+                amountA
+            )
+            const tknSold = ethers.utils.parseEther("1")
+            const bobExpectedOutput = await dex.getTokenAmount(tknSold)
+            tx = await dex.connect(bob).tokenToEthSwap(bobExpectedOutput, ethers.utils.parseEther("0.5"))
+
+            await expect(tx).to.emit(dex, "EthPurchase")
+        })
+        // it("should revert if output amount is insufficient", async () => {
+        //     await token.approve(dex.address, amountA)
+        //     tx = dex.addLiquidity(amountA, { value: amountB })
+        //     await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
+        //         deployer.address,
+        //         amountB,
+        //         amountA
+        //     )
+        //     const tknSold = ethers.utils.parseEther("1")
+        //     const bobExpectedOutput = await dex.getTokenAmount(tknSold)
+        //     tx = await dex.connect(bob).tokenToEthSwap(bobExpectedOutput, ethers.utils.parseEther("2"))
+
+        //     await expect(tx).to.be.revertedWith("insufficient output amount")
+        // })
+    })
 })

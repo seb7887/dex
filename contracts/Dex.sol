@@ -5,8 +5,6 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "hardhat/console.sol";
-
 interface IRegistry {
     function getDex(address _tknAddress) external returns (address);
 }
@@ -149,11 +147,6 @@ contract Dex is ERC20 {
             tknReserve,
             address(this).balance
         );
-        console.log("reserve %s", tknReserve);
-        console.log("ethBought %s", ethBought);
-        console.log("balance %s", address(this).balance);
-        console.log("minEth %s", _minEth);
-        console.log("tknSold %s", _tknSold);
 
         require(ethBought >= _minEth, "insufficient output amount");
 

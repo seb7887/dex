@@ -1,5 +1,6 @@
 import { ethers, waffle } from "hardhat"
 import { expect } from "chai"
+import { toWei, fromWei, getBalance, createDex } from "./utils"
 
 const { provider } = waffle
 
@@ -10,8 +11,8 @@ const amountC = ethers.utils.parseEther("500")
 let token: any
 let dex: any
 let deployer: any
-let alice: any
 let bob: any
+let alice: any
 let tx: any
 
 describe("Dex", () => {
@@ -82,7 +83,7 @@ describe("Dex", () => {
         it("should revert if amount equals to zero", async () => {
             const amount = ethers.utils.parseEther("0")
             tx = dex.removeLiquidity(amount)
-            await expect(tx).to.revertedWith("invalid amount to withdraw")
+            await expect(tx).to.be.revertedWith("invalid amount to withdraw")
         })
     })
 
@@ -129,33 +130,81 @@ describe("Dex", () => {
     })
 
     describe("tokenToEthSwap", () => {
-        it("happy path", async () => {
-            await token.approve(dex.address, amountA)
-            tx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-                deployer.address,
-                amountB,
-                amountA
-            )
-            const tknSold = ethers.utils.parseEther("1")
-            const bobExpectedOutput = await dex.getTokenAmount(tknSold)
-            tx = await dex.connect(bob).tokenToEthSwap(bobExpectedOutput, ethers.utils.parseEther("0.5"))
+        beforeEach(async () => {
+            await token.transfer(bob.address, toWei("22"))
+            await token.connect(bob).approve(dex.address, toWei("22"))
 
-            await expect(tx).to.emit(dex, "EthPurchase")
+            await token.approve(dex.address, toWei("2000"))
+            await dex.addLiquidity(toWei("2000"), { value: toWei("1000") })
         })
-        // it("should revert if output amount is insufficient", async () => {
-        //     await token.approve(dex.address, amountA)
-        //     tx = dex.addLiquidity(amountA, { value: amountB })
-        //     await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-        //         deployer.address,
-        //         amountB,
-        //         amountA
-        //     )
-        //     const tknSold = ethers.utils.parseEther("1")
-        //     const bobExpectedOutput = await dex.getTokenAmount(tknSold)
-        //     tx = await dex.connect(bob).tokenToEthSwap(bobExpectedOutput, ethers.utils.parseEther("2"))
 
-        //     await expect(tx).to.be.revertedWith("insufficient output amount")
-        // })
+        it("happy path", async () => {
+            tx = await dex.connect(bob).tokenToEthSwap(toWei("2"), toWei("0.9"))
+            await expect(tx).to.emit(dex, "EthPurchase").withArgs(
+                bob.address,
+                toWei("0.989020869339354039"),
+                toWei("2")
+            )
+
+            const dexTokenBalance = await token.balanceOf(dex.address)
+            expect(fromWei(dexTokenBalance)).to.equal("2002.0")
+        })
+        it("should revert if output amount is insufficient", async () => {
+            await expect(
+                dex.connect(bob).tokenToEthSwap(toWei("2"), toWei("1.0"))
+            ).to.be.revertedWith("insufficient output amount")
+        })
+    })
+
+    describe("tokenToTokenSwap", () => {
+        it("happy path", async () => {
+            const Factory = await ethers.getContractFactory("DexFactory")
+            const Token = await ethers.getContractFactory("IaoToken")
+
+            const factory = await Factory.deploy()
+            const tkn1 = await Token.deploy("TokenA", "AAA", toWei("1000000"))
+            const tkn2 = await Token.deploy("TokenB", "BBB", toWei("1000000"))
+
+            await factory.deployed()
+            await tkn1.deployed()
+            await tkn2.deployed()
+
+            const dex1 = await createDex(factory, tkn1.address, deployer)
+            const dex2 = await createDex(factory, tkn2.address, alice)
+
+            await tkn1.approve(dex1.address, amountA)
+            await dex1.addLiquidity(amountA, { value: amountB })
+
+            await tkn2.transfer(alice.address, amountB)
+            await tkn2.connect(alice).approve(dex2.address, amountB)
+            await dex2.connect(alice).addLiquidity(amountB, { value: amountB })
+
+            expect(await tkn2.balanceOf(deployer.address)).to.equal("999999999999999999999000000000000000000000")
+
+            await tkn1.approve(dex1.address, toWei("10"))
+            await dex1.tokenToTokenSwap(toWei("10"), toWei("4.8"), tkn2.address)
+
+            expect(fromWei(await tkn2.balanceOf(deployer.address))).to.equal("999999999999999999999004.852698493489877956")
+        })
+        it("should revert if cannot find Dex address in the registry", async () => {
+            const Factory = await ethers.getContractFactory("DexFactory")
+            const Token = await ethers.getContractFactory("IaoToken")
+
+            const factory = await Factory.deploy()
+            const tkn1 = await Token.deploy("TokenA", "AAA", toWei("1000000"))
+
+            await factory.deployed()
+            await tkn1.deployed()
+
+            const dex1 = await createDex(factory, tkn1.address, deployer)
+
+            await tkn1.approve(dex1.address, amountA)
+            await dex1.addLiquidity(amountA, { value: amountB })
+
+            await tkn1.approve(dex1.address, toWei("10"))
+            tx = dex1.tokenToTokenSwap(toWei("10"), toWei("4.8"), token.address)
+
+            await expect(tx).to.be.revertedWith("invalid dex address")
+        })
     })
 })

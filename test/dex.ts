@@ -1,13 +1,13 @@
 import { ethers, waffle } from "hardhat"
 import { expect } from "chai"
-import { toWei, fromWei, getBalance, createDex } from "./utils"
+import { toWei, fromWei, createDex } from "./utils"
 
 const { provider } = waffle
 
-const totalSupply = ethers.utils.parseEther("10000")
-const amountA = ethers.utils.parseEther("2000")
-const amountB = ethers.utils.parseEther("1000")
-const amountC = ethers.utils.parseEther("500")
+const totalSupply = toWei("10000")
+const amountA = toWei("2000")
+const amountB = toWei("1000")
+const amountC = toWei("500")
 let token: any
 let dex: any
 let deployer: any
@@ -31,11 +31,9 @@ describe("Dex", () => {
         it("happy path", async () => {
             await token.approve(dex.address, amountA)
             tx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-                deployer.address,
-                amountB,
-                amountA
-            )
+            await expect(tx)
+                .to.emit(dex, "AddLiquidity")
+                .withArgs(deployer.address, amountB, amountA)
 
             expect(await provider.getBalance(dex.address)).to.equal(amountB)
             expect(await dex.getReserve()).to.equal(amountA)
@@ -43,16 +41,14 @@ describe("Dex", () => {
         it("should revert trx if sender has not enough tokens", async () => {
             await token.approve(dex.address, amountA)
             tx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-                deployer.address,
-                amountB,
-                amountA
-            )
+            await expect(tx)
+                .to.emit(dex, "AddLiquidity")
+                .withArgs(deployer.address, amountB, amountA)
 
             await token.approve(dex.address, amountC)
             tx = dex.addLiquidity(amountC, { value: amountB })
 
-            await expect(tx).to.be.revertedWith("insufficient token amount");
+            await expect(tx).to.be.revertedWith("insufficient token amount")
         })
     })
 
@@ -62,11 +58,9 @@ describe("Dex", () => {
             token.transfer(bob.address, totalSupply)
             await token.connect(bob).approve(dex.address, totalSupply)
             tx = dex.connect(bob).addLiquidity(amountA, { value: amountB })
-            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-                bob.address,
-                amountB,
-                amountA
-            )
+            await expect(tx)
+                .to.emit(dex, "AddLiquidity")
+                .withArgs(bob.address, amountB, amountA)
 
             expect(await provider.getBalance(dex.address)).to.equal(amountB)
             expect(await dex.getReserve()).to.equal(amountA)
@@ -74,14 +68,12 @@ describe("Dex", () => {
             const lpAmount = await dex.balanceOf(bob.address)
 
             tx = dex.connect(bob).removeLiquidity(lpAmount)
-            await expect(tx).to.emit(dex, "RemoveLiquidity").withArgs(
-                bob.address,
-                amountB,
-                amountA
-            )
+            await expect(tx)
+                .to.emit(dex, "RemoveLiquidity")
+                .withArgs(bob.address, amountB, amountA)
         })
         it("should revert if amount equals to zero", async () => {
-            const amount = ethers.utils.parseEther("0")
+            const amount = toWei("0")
             tx = dex.removeLiquidity(amount)
             await expect(tx).to.be.revertedWith("invalid amount to withdraw")
         })
@@ -91,20 +83,18 @@ describe("Dex", () => {
         it("should return correct ETH price", async () => {
             await token.approve(dex.address, amountA)
             tx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-                deployer.address,
-                amountB,
-                amountA
-            )
+            await expect(tx)
+                .to.emit(dex, "AddLiquidity")
+                .withArgs(deployer.address, amountB, amountA)
 
-            let bar = await dex.getEthAmount(ethers.utils.parseEther("2"))
-            expect(ethers.utils.formatEther(bar)).to.eq("0.989020869339354039")
+            let bar = await dex.getEthAmount(toWei("2"))
+            expect(fromWei(bar)).to.eq("0.989020869339354039")
 
-            bar = await dex.getEthAmount(ethers.utils.parseEther("100"));
-            expect(ethers.utils.formatEther(bar)).to.eq("47.16531681753215817");
+            bar = await dex.getEthAmount(toWei("100"))
+            expect(fromWei(bar)).to.eq("47.16531681753215817")
 
-            bar = await dex.getEthAmount(ethers.utils.parseEther("2000"));
-            expect(ethers.utils.formatEther(bar)).to.eq("497.487437185929648241");
+            bar = await dex.getEthAmount(toWei("2000"))
+            expect(fromWei(bar)).to.eq("497.487437185929648241")
         })
     })
 
@@ -122,20 +112,26 @@ describe("Dex", () => {
         it("happy path", async () => {
             await token.approve(dex.address, amountA)
             tx = dex.addLiquidity(amountA, { value: amountB })
-            await expect(tx).to.emit(dex, "AddLiquidity").withArgs(
-                deployer.address,
-                amountB,
-                amountA
-            )
+            await expect(tx)
+                .to.emit(dex, "AddLiquidity")
+                .withArgs(deployer.address, amountB, amountA)
 
-            const bobExpectedOutput = await dex.getEthAmount(ethers.utils.parseEther("2"))
-            tx = await dex.connect(bob).ethToTokenSwap(bobExpectedOutput, { value: ethers.utils.parseEther("2") })
-
-            await expect(tx).to.emit(dex, "TokenPurchase").withArgs(
-                bob.address,
-                ethers.utils.parseEther("2"),
-                ethers.utils.parseEther("3.952174694105670771")
+            const bobExpectedOutput = await dex.getEthAmount(
+                toWei("2")
             )
+            tx = await dex
+                .connect(bob)
+                .ethToTokenSwap(bobExpectedOutput, {
+                    value: toWei("2"),
+                })
+
+            await expect(tx)
+                .to.emit(dex, "TokenPurchase")
+                .withArgs(
+                    bob.address,
+                    toWei("2"),
+                    toWei("3.952174694105670771")
+                )
         })
     })
 
@@ -150,11 +146,9 @@ describe("Dex", () => {
 
         it("happy path", async () => {
             tx = await dex.connect(bob).tokenToEthSwap(toWei("2"), toWei("0.9"))
-            await expect(tx).to.emit(dex, "EthPurchase").withArgs(
-                bob.address,
-                toWei("0.989020869339354039"),
-                toWei("2")
-            )
+            await expect(tx)
+                .to.emit(dex, "EthPurchase")
+                .withArgs(bob.address, toWei("0.989020869339354039"), toWei("2"))
 
             const dexTokenBalance = await token.balanceOf(dex.address)
             expect(fromWei(dexTokenBalance)).to.equal("2002.0")
@@ -189,12 +183,16 @@ describe("Dex", () => {
             await tkn2.connect(alice).approve(dex2.address, amountB)
             await dex2.connect(alice).addLiquidity(amountB, { value: amountB })
 
-            expect(await tkn2.balanceOf(deployer.address)).to.equal("999999999999999999999000000000000000000000")
+            expect(await tkn2.balanceOf(deployer.address)).to.equal(
+                "999999999999999999999000000000000000000000"
+            )
 
             await tkn1.approve(dex1.address, toWei("10"))
             await dex1.tokenToTokenSwap(toWei("10"), toWei("4.8"), tkn2.address)
 
-            expect(fromWei(await tkn2.balanceOf(deployer.address))).to.equal("999999999999999999999004.852698493489877956")
+            expect(fromWei(await tkn2.balanceOf(deployer.address))).to.equal(
+                "999999999999999999999004.852698493489877956"
+            )
         })
         it("should revert if cannot find Dex address in the registry", async () => {
             const Factory = await ethers.getContractFactory("DexFactory")

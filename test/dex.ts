@@ -108,6 +108,16 @@ describe("Dex", () => {
         })
     })
 
+    describe("getTokenAmount", () => {
+        it("should return correct token price", async () => {
+            await token.approve(dex.address, amountA)
+            await dex.addLiquidity(amountA, { value: amountB })
+
+            const tokensOut = await dex.getTokenAmount(toWei("1"))
+            expect(fromWei(tokensOut)).to.equal("1.978041738678708079")
+        })
+    })
+
     describe("ethToTokenSwap", () => {
         it("happy path", async () => {
             await token.approve(dex.address, amountA)
